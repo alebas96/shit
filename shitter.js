@@ -147,7 +147,7 @@ const getShortestDurationByDay = (data) => {
         if (shortestDurationWithinTheSameDay !== undefined && Object.entries(shortestDurationWithinTheSameDay).length > 0) {
             let currentDuration = Object.entries(shortestDurationWithinTheSameDay)[0][1];
             let currentShortestDuration = shortestDuration[formattedDate] ? Object.entries(shortestDuration[formattedDate])[0][1] : Infinity;
-            if (currentShortestDuration > currentDuration) {
+            if (currentShortestDuration > currentDuration && currentDuration !== 0) {
                 shortestDuration[formattedDate] = shortestDurationWithinTheSameDay
             }
         }
@@ -250,7 +250,7 @@ const showStatisticsForFrequency = (statistics) => {
 
 const showOverallStatistics = (statistics) => {
     console.log(statistics)
-    showStatisticsByDay(statistics)
+    showStatisticsByDay(statistics, 14)
     // showStatisticsByMonth(statistics)
     const dailyBestShitters = renderDailyMostFrequestNames(statistics.dailyMostFrequentNames)
     console.log('Daily Most Frequent Names: \n', dailyBestShitters);
