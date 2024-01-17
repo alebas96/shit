@@ -63,6 +63,10 @@ const buildStatistics = (data) => {
     const nameCount = {};
     let nameDaylyCount = {};
     let prevDateChanged = '';
+    let maxShitter = {
+        name: 'dummy',
+        count: 0
+    }
     data.forEach((shitter) => {
         // Count occurrences by name
         const { name, date } = shitter;
@@ -83,12 +87,13 @@ const buildStatistics = (data) => {
         }
 
         // Update daily most frequent name
-        if (!stats.dailyMostFrequentNames[formattedDate] || nameCount[name] > nameDaylyCount[stats.dailyMostFrequentNames[formattedDate].name]) {
-            stats.dailyMostFrequentNames[formattedDate] = {
+        if (!stats.dailyMostFrequentNames[formattedDate] || maxShitter.count < nameDaylyCount[name]) {
+            maxShitter = {
                 name,
                 count: nameDaylyCount[name]
-            };
+            }
         }
+        stats.dailyMostFrequentNames[formattedDate] = maxShitter;
     });
 
     const namesForShortestDuration = getShortestDurationByDay(data);
@@ -134,8 +139,9 @@ const getShortestDuration = (data) => {
  */
 const getLongestDuration = (data) => {
     const longestDurationInMinutes = {};
-    let prevDuration = 0;
+    
     data.forEach(({ name, date }) => {
+        let prevDuration = Math.floor(new Date(new Date(date).toDateString()).getTime() / 1000);
         const duration = (date.getTime() / 60000) - prevDuration;
         console.log(name, duration)
         if (duration > prevDuration) {
@@ -224,14 +230,18 @@ const renderDailyMostFrequestNames = (stats) => {
  * @param {*} statistics 
  * @param {*} day 
  */
-const showStatisticsByDay = (statistics, day = new Date().getDate() - 1) => {
+const showStatisticsByDay = (statistics, day = new Date().getDate()) => {
     const days = Object.keys(statistics.dailyMostFrequentNames);
     const isToday = day === new Date().getDate();
-    const today = isToday ? days[days.length - 1] : days.filter((dayOfMonth) => dayOfMonth.includes(`${day}/`));
+    const today = isToday ? days[days.length - 1] : days.filter((dayOfMonth) => dayOfMonth.includes(`${day}/`))[0];
     const dailyMostFrequentName = renderDailyMostFrequentName(statistics.dailyMostFrequentNames[today]);
     const todayStatatiscs = renderStatisticsByDay(statistics.dailyNameCounts[today]);
     console.log('Yesterday\'s Most Frequent Shitter: ', dailyMostFrequentName);
     console.log('Almost there buddies, get your shit together:\n', todayStatatiscs)
+    return ([
+        `Yesterday\'s Most Frequent Shitter: ${dailyMostFrequentName}`,
+        `Almost there buddies, get your shit together:\n${todayStatatiscs}`
+    ])
 };
 
 /**
@@ -248,6 +258,15 @@ const renderStatisticsByMonth = (stats, month = new Date().getMonth() + 1) => {
         output.push(`\t${day}\n${renderStatisticsByDay(entry[1], 3)}`)
     })
     return output.length > 0 ? output.join('\n') : ''
+}
+
+const renderLeaderboard = (stats) => {
+    let output = [];
+    Object.entries(stats).forEach(([name, count]) => {
+        output.push(`${name}: ${count}`)
+    })
+
+    return output;
 }
 
 /**
@@ -283,13 +302,17 @@ const showStatisticsByMonth = (statistics) => {
         { name: 'October', code: 10 },
         { name: 'November', code: 11 },
         { name: 'December', code: 12 }];
+    let output = [];
+    output.push('Monthly crazy piecies of shits')
     console.log('Monthly crazy piecies of shits')
     months.forEach(({ name, code }) => {
         const monthCurrentStats = renderStatisticsByMonth(statistics.dailyNameCounts, code);
         const isMonthEmpty = monthCurrentStats === '';
         if (!isMonthEmpty)
+            output.push(`${name}:\n` + monthCurrentStats)
             console.log(`${name}:\n`, monthCurrentStats)
     })
+    return output;
 }
 
 /**
@@ -299,6 +322,19 @@ const showStatisticsByMonth = (statistics) => {
 const showStatisticsForFrequency = (statistics) => {
     const namesForShortestDuration = renderMostFrequentShitter(statistics.namesForShortestDuration);
     console.log('Least duration between shit (in Min)\n', namesForShortestDuration)
+    return `Least duration between shit (in Min)\n ${namesForShortestDuration}`
+}
+
+const renderDailyBestShiter = (statistics) => {
+    const dailyBestShitters = renderDailyMostFrequestNames(statistics.dailyMostFrequentNames)
+    console.log('Daily Most Frequent Names: \n', dailyBestShitters);
+    return `Daily Most Frequent Names:\n${dailyBestShitters}`;
+}
+
+const showLeaderboard = (statistics) => {
+    const leaderboard = renderLeaderboard(statistics).join('\n');
+
+    return `Leaderborad:\n${leaderboard}`;
 }
 
 /**
@@ -307,28 +343,36 @@ const showStatisticsForFrequency = (statistics) => {
  */
 const showOverallStatistics = (statistics) => {
     console.log(statistics)
-    showStatisticsByDay(statistics)
-    // showStatisticsByMonth(statistics)
-    const dailyBestShitters = renderDailyMostFrequestNames(statistics.dailyMostFrequentNames)
-    console.log('Daily Most Frequent Names: \n', dailyBestShitters);
-    showStatisticsForFrequency(statistics);
-/*     const inputElement = `<span class="selectable-text copyable-text" data-lexical-text="true">${value}</span>`
-    const inputDiv = document.querySelector('#main > footer > div._2lSWV._3cjY2.copyable-area > div > span:nth-child(2) > div > div._1VZX7 > div._3Uu1_ > div > div > p');
-    inputDiv.innerHTML = inputElement; */
+    const statisticsByDay = showStatisticsByDay(statistics, new Date().getDate() - 1).join('\n')
+    // const statisticsByMonth = showStatisticsByMonth(statistics)
+    const dailyBestShitters = renderDailyBestShiter(statistics)
+    const statisticsForFrequency = showStatisticsForFrequency(statistics);
     console.log('Overall Most Frequent Name:', statistics.overallMostFrequentName, 'Count:', statistics.overallMostFrequentCount);
-    console.log('Overall Least Frequent Name:', statistics.overallLeastFrequentName, 'Count:', statistics.overallLestFrequentCount);
+    console.log('Overall Least Frequent Name: ' + statistics.overallLeastFrequentName + ' Count: ' + statistics.overallLestFrequentCount);
+    const leaderboard = showLeaderboard(statistics.leaderboard)
+    return ([
+        'Overall Most Frequent Name: ' + statistics.overallMostFrequentName + ' Count: ' + statistics.overallMostFrequentCount,
+        'Overall Least Frequent Name: ' + statistics.overallLeastFrequentName + ' Count: ' + statistics.overallLestFrequentCount,
+        leaderboard,
+        '\n',
+        statisticsByDay,
+        '\n',
+        dailyBestShitters,
+        '\n',
+        statisticsForFrequency
+    ])
 }
-
 
 const intervalId = window.setInterval(function () {
     var elem = document.querySelector('#main > div._3B19s > div > div._5kRIK');
     elem.scrollTop = -10;
     if (document.querySelector('#main > div._3B19s > div > div._5kRIK').textContent.includes('da mezzanotte si scrive quando si caga')) {
-        clearInterval(intervalId);
+        
         const data = fetchShit()
         const statistics = buildStatistics(data);
         // Get the name for the shortest duration within the same day
-
-        showOverallStatistics(statistics)
+        clearInterval(intervalId);
+        const overallStats = showOverallStatistics(statistics);
+        console.log(overallStats.join('\n'))  
     }
-}, 1500);
+}, 1000);
