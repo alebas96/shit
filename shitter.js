@@ -149,7 +149,7 @@ const getLongestDuration = (data) => {
         let prevDurationFromCurrentStartOfDay = Math.floor(new Date(dateString).getTime() / IN_HOURS);
         const duration = Math.floor((date.getTime() / IN_HOURS) - prevDurationFromCurrentStartOfDay);
         if (duration > maxDuration) {
-            if (checkedDates[dateString]){
+            if (checkedDates[dateString]) {
                 prevDurationFromCurrentStartOfDay = Math.floor(new Date(dateString).getTime() / IN_HOURS);
             }
             maxDuration = duration
@@ -202,7 +202,7 @@ const getShortestAndLongestDurationByDay = (data) => {
         }
     });
 
-    return {shortestDuration, longestDuration};
+    return { shortestDuration, longestDuration };
 };
 
 /**
@@ -340,7 +340,7 @@ const showStatisticsByMonth = (statistics) => {
         const isMonthEmpty = monthCurrentStats === '';
         if (!isMonthEmpty)
             output.push(`${name}:\n` + monthCurrentStats)
-            console.log(`${name}:\n`, monthCurrentStats)
+        console.log(`${name}:\n`, monthCurrentStats)
     })
     return output;
 }
@@ -393,16 +393,69 @@ const showOverallStatistics = (statistics) => {
     ])
 }
 
+const toCsv = (array) => array.map(item => Object.values(item).join(',')).join('\n');
+
+const downloadFile = (filename, data, type) => {
+    var file = new Blob([data], { type: type });
+    if (window.navigator.msSaveOrOpenBlob) // IE10+
+        window.navigator.msSaveOrOpenBlob(file, filename);
+    else { // Others
+        var a = document.createElement("a"),
+            url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 0);
+    }
+};
+
+const saveFiles = (statistics) => {
+    // Extract daily most frequent names
+    const dailyMostFrequentNames = Object.entries(statistics.dailyMostFrequentNames).map(([date, entry]) => ({ Date: date, ...entry }));
+
+    // Extract daily name counts
+    const dailyNameCounts = Object.entries(statistics.dailyNameCounts).flatMap(([date, counts]) =>
+        Object.entries(counts).map(([name, count]) => ({ Date: date, Name: name, Count: count.count }))
+    );
+
+    // Extract leaderboard statistics
+    const leaderboard = Object.entries(statistics.leaderboard).map(([name, count]) => ({ Name: name, Count: count }));
+
+    // Extract names for the shortest duration
+    const shortestDuration = Object.entries(statistics.namesForShortestDuration.shortestDuration).flatMap(([date, counts]) =>
+        Object.entries(counts).map(([name, count]) => ({ Date: date, Name: name, Count: count }))
+    );
+
+    // Extract names for the longest duration
+    const longestDuration = Object.entries(statistics.namesForShortestDuration.longestDuration).flatMap(([date, counts]) =>
+        Object.entries(counts).map(([name, count]) => ({ Date: date, Name: name, Count: count }))
+    );
+
+    // Save data to CSV files
+    downloadFile('daily_most_frequent_names.csv', `Date,name,count\n${toCsv(dailyMostFrequentNames)}`)
+    downloadFile('daily_name_counts.csv', `Date,Name,Count\n${toCsv(dailyNameCounts)}`);
+    downloadFile('leaderboard.csv', `Name,Count\n${toCsv(leaderboard)}`);
+    downloadFile('shortest_duration.csv', `Date,Name,Count\n${toCsv(shortestDuration)}`);
+    downloadFile('longest_duration.csv', `Date,Name,Count\n${toCsv(longestDuration)}`);
+
+    console.log('CSV files have been created successfully.');
+}
+
 const intervalId = window.setInterval(function () {
     var elem = document.querySelector('#main > div._3B19s > div > div._5kRIK');
     elem.scrollTop = -10;
     if (document.querySelector('#main > div._3B19s > div > div._5kRIK').textContent.includes('da mezzanotte si scrive quando si caga')) {
-        
+
         const data = fetchShit()
         const statistics = buildStatistics(data);
         // Get the name for the shortest duration within the same day
         clearInterval(intervalId);
         const overallStats = showOverallStatistics(statistics);
-        console.log(overallStats.join('\n'))  
+        saveFiles(statistics)
+        console.log(overallStats.join('\n'))
     }
 }, 1000);
