@@ -7,6 +7,8 @@
  * - Nota che potresti non riuscire a incollare il codice e dovrai scrivere 'allow paste'
  * - Copia e incolla il codice sottostante
  */
+const IN_HOURS = 3600000;
+const IN_MINUTES = 60000;
 
 /**
  * 
@@ -96,7 +98,7 @@ const buildStatistics = (data) => {
         stats.dailyMostFrequentNames[formattedDate] = maxShitter;
     });
 
-    const namesForShortestDuration = getShortestDurationByDay(data);
+    const namesForShortestDuration = getShortestAndLongestDurationByDay(data);
 
     // Find the overall most and least frequent names
     const names = Object.keys(nameCount);
@@ -120,7 +122,7 @@ const getShortestDuration = (data) => {
     const shortestDurationInMinutes = {};
     let prevDuration = 0;
     data.forEach(({ name, date }) => {
-        const duration = (date.getTime() / 60000) - prevDuration;
+        const duration = (date.getTime() / IN_MINUTES) - prevDuration;
         if (duration > prevDuration) {
             prevDuration = duration
             shortestDurationInMinutes[name] = duration
@@ -139,18 +141,24 @@ const getShortestDuration = (data) => {
  */
 const getLongestDuration = (data) => {
     const longestDurationInMinutes = {};
-    
+    const checkedDates = {}
+    let maxDuration = 0;
+
     data.forEach(({ name, date }) => {
-        let prevDuration = Math.floor(new Date(new Date(date).toDateString()).getTime() / 1000);
-        const duration = (date.getTime() / 60000) - prevDuration;
-        console.log(name, duration)
-        if (duration > prevDuration) {
-            prevDuration = duration
+        const dateString = new Date(date).toDateString()
+        let prevDurationFromCurrentStartOfDay = Math.floor(new Date(dateString).getTime() / IN_HOURS);
+        const duration = Math.floor((date.getTime() / IN_HOURS) - prevDurationFromCurrentStartOfDay);
+        if (duration > maxDuration) {
+            if (checkedDates[dateString]){
+                prevDurationFromCurrentStartOfDay = Math.floor(new Date(dateString).getTime() / IN_HOURS);
+            }
+            maxDuration = duration
             longestDurationInMinutes[name] = duration
         }
         if (longestDurationInMinutes[name] < duration) {
             longestDurationInMinutes[name] = duration
         }
+        checkedDates[dateString] = true
     })
     return longestDurationInMinutes
 }
@@ -160,10 +168,15 @@ const getLongestDuration = (data) => {
  * @param {*} data 
  * @returns 
  */
-const getShortestDurationByDay = (data) => {
+const getShortestAndLongestDurationByDay = (data) => {
     const shortestDuration = {}; // To store the shortest duration for each day
     shortestDuration[data[0].date.toISOString().split('T')[0]] = {
-        ['dummy']: Infinity
+        ['dummy']: 0
+    }
+
+    const longestDuration = {}; // To store the shortest duration for each day
+    longestDuration[data[0].date.toISOString().split('T')[0]] = {
+        ['dummy']: 0
     }
 
     data.forEach(({ name, date }) => {
@@ -171,6 +184,7 @@ const getShortestDurationByDay = (data) => {
 
         const nextEntryWithSameName = data.filter((entry) => entry.name === name && entry.date.toDateString() == new Date(formattedDate).toDateString());
         const shortestDurationWithinTheSameDay = nextEntryWithSameName && getShortestDuration(nextEntryWithSameName);
+        const longestDurationWithinTheSameDay = nextEntryWithSameName && nextEntryWithSameName?.length > 1 && getLongestDuration(nextEntryWithSameName);
         if (shortestDurationWithinTheSameDay !== undefined && Object.entries(shortestDurationWithinTheSameDay).length > 0) {
             let currentDuration = Object.entries(shortestDurationWithinTheSameDay)[0][1];
             let currentShortestDuration = shortestDuration[formattedDate] ? Object.entries(shortestDuration[formattedDate])[0][1] : Infinity;
@@ -178,9 +192,17 @@ const getShortestDurationByDay = (data) => {
                 shortestDuration[formattedDate] = shortestDurationWithinTheSameDay
             }
         }
+
+        if (longestDurationWithinTheSameDay !== undefined && Object.entries(longestDurationWithinTheSameDay).length > 0) {
+            let currentDuration = Object.entries(longestDurationWithinTheSameDay)[0][1];
+            let currentLongestDuration = longestDuration[formattedDate] ? Object.entries(longestDuration[formattedDate])[0][1] : Infinity;
+            if (currentLongestDuration > currentDuration && currentDuration !== 0) {
+                longestDuration[formattedDate] = longestDurationWithinTheSameDay
+            }
+        }
     });
 
-    return shortestDuration;
+    return {shortestDuration, longestDuration};
 };
 
 /**
@@ -197,7 +219,7 @@ const renderStatisticsByDay = (stats, layers = 0) => {
         tabsByLayer = tabsByLayer + '\t'
     }
     entries.forEach((entry) => {
-        output.push(`${tabsByLayer}${entry[0]}: ${entry[1].count || entry[1]}`)
+        output.push(`\t${entry[0]}: ${entry[1].count || entry[1]}`)
     })
     return output.join('\n')
 }
@@ -220,7 +242,7 @@ const renderDailyMostFrequestNames = (stats) => {
     const entries = Object.entries(stats);
     let output = [];
     entries.forEach((entry) => {
-        output.push(`\t${entry[0]}\n\t\t${renderDailyMostFrequentName(entry[1])}`)
+        output.push(`\t${entry[0]}\t${renderDailyMostFrequentName(entry[1])}`)
     })
     return output.join('\n')
 }
@@ -255,7 +277,7 @@ const renderStatisticsByMonth = (stats, month = new Date().getMonth() + 1) => {
     let output = [];
     entries.forEach((entry) => {
         const day = entry[0];
-        output.push(`\t${day}\n${renderStatisticsByDay(entry[1], 3)}`)
+        output.push(`\t${day}\t${renderStatisticsByDay(entry[1], 3)}`)
     })
     return output.length > 0 ? output.join('\n') : ''
 }
@@ -275,10 +297,18 @@ const renderLeaderboard = (stats) => {
  * @returns 
  */
 const renderMostFrequentShitter = (stats) => {
-    const output = []
-    Object.entries(stats).forEach((entry) => {
+    const output = [];
+    const longestDuration = stats.longestDuration;
+    const shortestDuration = stats.shortestDuration
+    output.push('Longest Shit Frequency of the day in hours')
+    Object.entries(longestDuration).forEach((entry) => {
         const day = entry[0];
-        output.push(`\t${day}\n${renderStatisticsByDay(entry[1], 3)}`)
+        output.push(`\t${day}\t${renderStatisticsByDay(entry[1], 3)}`)
+    });
+    output.push('\nShortest Shit Frequency of the day in minutes')
+    Object.entries(shortestDuration).forEach((entry) => {
+        const day = entry[0];
+        output.push(`\t${day}\t${renderStatisticsByDay(entry[1], 3)}`)
     })
 
     return output.join('\n');
@@ -320,9 +350,9 @@ const showStatisticsByMonth = (statistics) => {
  * @param {*} statistics 
  */
 const showStatisticsForFrequency = (statistics) => {
-    const namesForShortestDuration = renderMostFrequentShitter(statistics.namesForShortestDuration);
-    console.log('Least duration between shit (in Min)\n', namesForShortestDuration)
-    return `Least duration between shit (in Min)\n ${namesForShortestDuration}`
+    const namesForShortestAndLongestDuration = renderMostFrequentShitter(statistics.namesForShortestDuration);
+    console.log('\n', namesForShortestAndLongestDuration)
+    return `\n ${namesForShortestAndLongestDuration}`
 }
 
 const renderDailyBestShiter = (statistics) => {
