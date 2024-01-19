@@ -455,7 +455,7 @@ const intervalId = window.setInterval(function () {
         // Get the name for the shortest duration within the same day
         clearInterval(intervalId);
         const overallStats = showOverallStatistics(statistics);
-        saveFiles(statistics)
+        // saveFiles(statistics)
         console.log(overallStats.join('\n'))
     }
 }, 1000);
